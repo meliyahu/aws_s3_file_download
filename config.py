@@ -8,4 +8,6 @@ class Config:
 
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', 'my_aws_access_key_id') 
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', 'my_aws_secrete_access')
-     
+
+    ROOT_DIR = os.path.abspath(os.curdir)
+    DOWNLOADS_FOLDER = os.path.join(ROOT_DIR, 'downloads')  
