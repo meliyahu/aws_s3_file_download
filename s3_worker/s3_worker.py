@@ -3,20 +3,24 @@ from botocore.client import ClientError
 import logging
 import argparse
 import os
+import errno
 import time
 from config import Config
 import sys 
 
 
 class S3Worker():
-    def __init__(self, bucket_name):
+    def __init__(self, bucket_name, sub_folder):
         self.bucket_name = bucket_name
+        self.sub_folder = sub_folder
         self.check_creds()
         self.s3_client = boto3.client('s3', aws_access_key_id=Config.AWS_ACCESS_KEY_ID , aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY) # type: botostubs.S3
     
     def check_creds(self):
-        if Config.AWS_ACCESS_KEY_ID is None or Config.AWS_SECRET_ACCESS_KEY is None:
-            sys.exit("Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY missing! Please pass them as environment variables!")
+        if not Config.AWS_ACCESS_KEY_ID or not Config.AWS_SECRET_ACCESS_KEY:
+            logging.error(f'AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY missing!')
+            print(f'Alert! AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY missing!')
+            sys.exit("Error: AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY missing! They need to be environment variables!")
             
     def execute(self):
         
@@ -32,6 +36,8 @@ class S3Worker():
             logging.error(f'There are no files in bucket [{self.bucket_name}]!')
             print()
             sys.exit(f"There are no files in bucket [{self.bucket_name}]!")
+        
+        self.create_download_folder()
         
         download_file = os.path.join(Config.DOWNLOADS_FOLDER, last_added_file)
            
@@ -49,8 +55,11 @@ class S3Worker():
         """
         get_last_modified = lambda obj: int(obj['LastModified'].strftime('%s'))
         
+        if not self.sub_folder.endswith('/'):
+            self.sub_folder += '/'
+            
         paginator = self.s3_client.get_paginator('list_objects')
-        page_iterator = paginator.paginate(Bucket=self.bucket_name)
+        page_iterator = paginator.paginate(Bucket=self.bucket_name, Prefix=self.sub_folder)
         last_added = None
         for page in page_iterator:
             # print(f'page: {page["Contents"]}')
@@ -64,6 +73,17 @@ class S3Worker():
             self.s3_client.head_bucket(Bucket=self.bucket_name)
             return None, True
         except ClientError as err:
-            return err, False  
+            return err, False 
+        
+    def create_download_folder(self):
+        """
+            Checks if directory tree in path exists. If not it created them.
+        """
+        download_path = os.path.join(Config.DOWNLOADS_FOLDER, self.sub_folder)
+        try:
+            os.makedirs(download_path)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
     
     
